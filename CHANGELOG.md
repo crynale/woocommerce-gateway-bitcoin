@@ -1,5 +1,16 @@
 # Changelog
 
+### 1.3.3
+
+* Major file/folder moves
+* Better logging
+
+### 1.3.2
+
+* Fix: missing `btc_amount_received` variable for templates
+* UI: Allow the Bitcoin address to break/wordwrap
+* More Action Scheduler logging
+
 ### 1.3.1
 
 * Fix: continue checking for address transactions after order is marked paid

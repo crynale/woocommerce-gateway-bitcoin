@@ -3,12 +3,12 @@
  * @package    nullcorps/woocommerce-gateway-bitcoin
  */
 
-namespace Nullcorps\WC_Gateway_Bitcoin\Includes;
+namespace Nullcorps\WC_Gateway_Bitcoin\WP_Includes;
 
 use Nullcorps\WC_Gateway_Bitcoin\API\Address_Storage\Crypto_Address;
 use Nullcorps\WC_Gateway_Bitcoin\API\Address_Storage\Crypto_Address_Factory;
-use Nullcorps\WC_Gateway_Bitcoin\API\API_Interface;
-use Nullcorps\WC_Gateway_Bitcoin\API\Settings_Interface;
+use Nullcorps\WC_Gateway_Bitcoin\API_Interface;
+use Nullcorps\WC_Gateway_Bitcoin\Settings_Interface;
 use Nullcorps\WC_Gateway_Bitcoin\WooCommerce\Order;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LoggerInterface;
@@ -85,7 +85,7 @@ class CLI extends WP_CLI_Command {
 					break;
 				case 'shop_order':
 					$input = intval( $input );
-					$this->logger->debug( 'CLI input was a WooCommerce shop_order post_id: ' . $input );
+					$this->logger->debug( 'CLI input was WooCommerce shop_order:' . $input );
 					$order = wc_get_order( $input );
 					if ( ( $order instanceof WC_Order ) && $this->api->is_order_has_bitcoin_gateway( $input ) ) {
 						$input                  = $order->get_meta( Order::BITCOIN_ADDRESS_META_KEY );

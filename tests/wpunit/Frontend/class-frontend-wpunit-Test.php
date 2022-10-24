@@ -4,8 +4,8 @@ namespace Nullcorps\WC_Gateway_Bitcoin\Frontend;
 
 use BrianHenryIE\ColorLogger\ColorLogger;
 use Codeception\Stub\Expected;
-use Nullcorps\WC_Gateway_Bitcoin\API\API_Interface;
-use Nullcorps\WC_Gateway_Bitcoin\API\Settings_Interface;
+use Nullcorps\WC_Gateway_Bitcoin\API_Interface;
+use Nullcorps\WC_Gateway_Bitcoin\Settings_Interface;
 
 /**
  * @coversDefaultClass \Nullcorps\WC_Gateway_Bitcoin\Frontend\Frontend
@@ -55,7 +55,7 @@ class Frontend_WPUnit_Test extends \Codeception\TestCase\WPTestCase {
 
 		$this->assertTrue( wp_script_is( 'nullcorps-wc-gateway-bitcoin' ) );
 
-		// TODO: check the inline script is enqueued
+		// TODO: check the inline script is enqueued.
 	}
 
 	/**

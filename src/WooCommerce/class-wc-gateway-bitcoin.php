@@ -10,7 +10,7 @@ namespace Nullcorps\WC_Gateway_Bitcoin\WooCommerce;
 use Exception;
 use Nullcorps\WC_Gateway_Bitcoin\Action_Scheduler\Background_Jobs;
 use Nullcorps\WC_Gateway_Bitcoin\API\Address_Storage\Crypto_Address;
-use Nullcorps\WC_Gateway_Bitcoin\API\API_Interface;
+use Nullcorps\WC_Gateway_Bitcoin\API_Interface;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LogLevel;
 use Psr\Log\NullLogger;
@@ -312,7 +312,7 @@ class WC_Gateway_Bitcoin extends WC_Payment_Gateway {
 		$args = array( 'order_id' => $order_id );
 		if ( ! as_has_scheduled_action( $hook, $args ) ) {
 			$timestamp = time() + ( 5 * MINUTE_IN_SECONDS );
-			$this->logger->debug( 'New order created, scheduling background job to check for payments' );
+			$this->logger->debug( 'New order created, shop_order:' . $order_id . ', scheduling background job to check for payments' );
 			as_schedule_single_action( $timestamp, $hook, $args );
 		}
 
