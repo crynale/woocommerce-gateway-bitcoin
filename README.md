@@ -1,262 +1,184 @@
-[![WordPress tested 5.9](https://img.shields.io/badge/WordPress-v5.9%20tested-0073aa.svg)](https://wordpress.org/plugins/woocommerce-gateway-bitcoin) [![PHPCS WPCS](https://img.shields.io/badge/PHPCS-WordPress%20Coding%20Standards-8892BF.svg)](https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards) [![PHPUnit ](.github/coverage.svg)](https://brianhenryie.github.io/woocommerce-gateway-bitcoin/) [![PHPStan ](https://img.shields.io/badge/PHPStan-Level%208-2a5ea7.svg)](https://github.com/szepeviktor/phpstan-wordpress) 
+[![WordPress tested 6.1](https://img.shields.io/badge/WordPress-v6.1%20tested-0073aa.svg)](https://wordpress.org/plugins/woocommerce-gateway-bitcoin) [![PHPCS WPCS](https://img.shields.io/badge/PHPCS-WordPress%20Coding%20Standards-8892BF.svg)](https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards) [![PHPUnit ](.github/coverage.svg)](https://brianhenryie.github.io/bh-wc-bitcoin-gateway/) [![PHPStan ](https://img.shields.io/badge/PHPStan-Level%208-2a5ea7.svg)](https://github.com/szepeviktor/phpstan-wordpress) 
 
+# Bitcoin Gateway for WooCommerce
 
-# WooCommerce Gateway Bitcoin
+Self-custody Bitcoin payment gateway for WooCommerce. Bitcoin is paid directly into your wallet. Transactions are verified using public APIs. No private keys are stored on the server. No account is needed with any third party.
 
-Self-custody Bitcoin checkout for woocommerce. No middle man, privacy oriented, minimal maintenance, simple.
+_The WooCommerce Bitcoin gateway most philosophically aligned with WordPress and Bitcoin._
 
-Get paid directly into your self-custody wallet without any middleman or any [KYC'd](https://en.wikipedia.org/wiki/Know_your_customer) APIs.
-No signups, no Terms of Service, nobody taking a cut. Make a sale on your site and it drops straight into
-your [Electrum](https://electrum.org/#home) (or whatever) wallet. Payments are between you and the Bitcoin network (well and possibly
-the public API providers somewhat but you have a choice which to use).
+## Installation and Use
 
-NO FULL BITCOIN NODE REQUIRED \o/
+1. Download, install and activate the latest version from [GitHub Releases](https://github.com/BrianHenryIE/woocommerce-gateway-bitcoin/releases/). 
 
-THIS IS VERY MUCH WIP - MAKE OF IT WHAT YOU WILL. IF YOU MANAGE TO BREAK IT SOMEHOW [PLEASE DO LET ME KNOW](https://github.com/BrianHenryIE/woocommerce-gateway-bitcoin/issues) OR BETTER STILL [FIX IT AND THEN LET ME KNOW](https://github.com/BrianHenryIE/woocommerce-gateway-bitcoin/pulls) :)
+This plugin requires PHP's [GMP extension](https://www.php.net/manual/en/book.gmp.php), if it is not installed on your server, the gateway will not be added to WooCommerce and an admin notice will be displayed explaining why.
 
-- Built with using [Electrum](https://electrum.org/#home) in mind. Love it or hate it it's the on-ramp for many people. Should work with other wallets which also use the m/0/1 derivation path (most of them?), though not currently tested as such
+![Missing dependency admin notice](./.wordpress-org/screenshot-8.png "Admin notice when required PHP GMP library is unavailable")
 
-- This is not trying to be fancy and compete with [BTCpayserver](https://btcpayserver.org/). BTCpayserver is an awesome product but the technical
-  threshold is still a bit high for some people if you want to run your own, or you need to use a 3rd party service like [BTCPayJungle](https://github.com/BTCPayJungle). If you're wanting to do [Lightning payments](https://en.wikipedia.org/wiki/Lightning_Network) then just go and figure out btcpayserver. But if you just want nobody else taking a slice and don't have your own node then this might be an easy-to-set up and lightweight option. No "accounts" needed with anyone. Just you and your self-custody wallet.
+If all goes well, you will see a `Settings` link beside the plugin name: 
 
-- This plugin uses public APIs which require no [KYC](https://en.wikipedia.org/wiki/Know_your_customer), and self-custody wallets (e.g. [Electrum](https://electrum.org/#home)). You just need your local wallet and your xpub
-  and you can start taking payments which land right in your electrum wallet. Boosh.
+![Settings link on plugins.php](./.wordpress-org/screenshot-9.png "Settings link on plugins.php")
 
-- Basic principle is that you drop your xpub (master public key, you can find this in electrum/wallet/information, starts
-  "xpub*abunchanumbers*") into the plugin settings, from that we use the [bitwasp library](https://github.com/Bit-Wasp/bitcoin-php) to *locally* (on the server) derive Bticoin addresses
-  using m/0/n derivation path (like electrum) which means the addresses generated will line up 100% with the addresses
-  which show up in your electrum wallet, BUT unlike the [nomiddleman plugin](https://github.com/nomiddleman/nomiddleman-woocommerce) (which was the only other/closest plugin like this I could find), you don't have to "load" addresses in manually one by one, which is a pain in the short term and only gets more annoying with time, especially in a busy shop. So this plugin generates new addresses in the background (via [WooCommerce's Action Scheduler](https://github.com/woocommerce/action-scheduler)) when addresses get low.
-
-- Each address only gets issued once, and once issued is "tied" to the woocommerce order via postmeta, so that the two are linked
-
-- Addresses are pre-generated in batches in the background so there's a list of at least 50 
-  sat there in a textfile ready to use, so we don't have to do any heavy maths on the fly, just pop the next address off the "address stack".
-  Once issued, that address is removed from the "fresh addresses" stack and pushed onto the "used addresses" stack, ~~along with the corresponding woocommerce order number. That way hopefully even if somehow you lose the postmeta info with the address for the order, you would still have the address use log for reconciling addresses with orders~~.
-
-- Currently this plugin uses [blockchain.info's public api](https://www.blockchain.com/api) to check address balances but will soon also be compatible with [blockstream.info's public api](https://github.com/Blockstream/esplora/blob/master/API.md) which I believe can also be accessed over [tor](https://www.torproject.org/). User will\* be able to set a preference for which to use, but the other will be available as a failover in case the site gets rate-limited by either API.
-
-[NullCorps](https://github.com/Nullcorps)
-
-## Installation 
-
-### Requirements:
-
-This plugin requires the following PHP modules to work. Please note Mcrypt is no longer included as part of the standard PHP modules so needs a little extra work to install, I've included a link to a set of instructions which worked. Replace "7.4" with whatever version of php you're using. I've only tested up to 7.4 currently:
-
-- bcmath   :   `php -m | grep bcmath`   :   sudo apt install php7.4-bcmath
-- gmp      :   `php -m | grep gmp`      :  sudo apt install php7.4-gmp
-- mcrypt   :   `php -r 'echo function_exists("mcrypt_encrypt") ? "yes" : "no";'`  https://computingforgeeks.com/install-php-mcrypt-extension-on-ubuntu/
-
-### Instructions:
-
-- download the plugin from the [GitHub releases](https://github.com/BrianHenryIE/woocommerce-gateway-bitcoin/releases), log into WordPress, click Plugins in the menu, Add Plugin, upload, activate.
-
-
-then:
-- in the admin dashboard under WooCommerce/Settings/Payments you should now see the payment option listed
+And in the admin dashboard under WooCommerce/Settings/Payments you will be able to see the payment option listed:
 
 ![WooCommerce Payment Gateways list](./.wordpress-org/screenshot-1.png "Once the plugin is active, the gateway will be visible in the WooCommerce Payment Gateways list")
 
-- copy and paste in the xpub from your wallet. In electrum it's under menu:wallet/infromation. It should start with xpub and then a bunch of numbers
+2. From your Bitcoin wallet, copy your "Master Public Key". It should start with `xpub`, `ypub` or `zpub` and then a long alphanumeric string.
+
+<details>
+<summary>E.g. Electrum Bitcoin Wallet</summary>
+
+For [Electrum Bitcoin Wallet](https://electrum.org/), it's in the menu under `Wallet`/`Infromation`:
 
 ![Electrum Wallet Information Screen](./.wordpress-org/screenshot-2.png "Copy xpub or zpub etc from here")
 
+</details>
+
+Paste that into the payment gateway settings screen and save:
+
 ![WooCommerce Bitcoin Gateway settings screen](./.wordpress-org/screenshot-3.png "Paste your xpub into the WooCommerce settings")
 
-- save the settings. ~~You may also want to set the 0-conf limit to 0 if you don't want to allow zer-confirmation transactions (probably a good idea)~~ (now the default)
+When a master public key is added, the payment addresses are derived.
 
-You should now be able to add an item to your cart, head to the checkout and with a bit of luck you'll see the bitcoin payment option. If you proceed with that it should then show you an address, QR-code etc which is now tied to this order and will not be reused. ~~It's ok though, you can generate as many addresses as you like, all you need to do is re-visit that addresses page periodically to top up your stash of addresses. On a super busy site you might want to adjust the settings to pre-generate a larger number of addresses e.g. 200.~~
+3. You will now be able to add an item to your cart, head to the checkout and see the Bitcoin payment option:
 
-![Gateway visible on checkout](./.wordpress-org/screenshot-4.png "The gateway will be available at customer checkout")
+![Gateway visible on standard checkout](./.wordpress-org/screenshot-4.png "The gateway will be available at customer checkout")
 
+The Bitcoin gateway also works with WooCommerce Blocks checkout:
 
-PLEASE NOTE: segwit wallets doesn't seem to be supported by bitwasp, there's nothing I can really do about that currently. (TODO: double-check this, [it may be possible](https://github.com/Bit-Wasp/bitcoin-php/issues/863) )
+![Gateway visible on blocks checkout](./.wordpress-org/screenshot-10.png "The gateway works with WooCommerce Blocks checkout")
 
-## Use
-
-After checkout, this is what the customer will see:
+4. When an order is placed, a derived payment address is tied to this order and will not be reused. After checkout, this is what the customer will see:
 
 ![WooCommerce order thank you page](./.wordpress-org/screenshot-5.png "The thank you page shows the payment instructions")
 
-* The QR code can be scanned or clicked, and contains the address and amount.
-* "Payment Address" and "Payment Total" are both links which copy the value to the clipboard.
-* "Last Checked" is a link which checks the blockchain for transactions.
-* A background check runs every five minutes as long as the order remains on-hold.
-* The customer can view the same payment instructions under `my-account/orders/123`.
+* The QR code can be scanned or clicked, and contains the address and amount
+* "Payment Address" and "Payment Total" are both links which copy the value to the clipboard
+* "Last Checked" is a link which queries the blockchain for new transactions
+* A background check runs every five minutes as long as the order remains on-hold
+* The same payment instructions are added to the customer emails
+* The customer can view the same payment instructions under `my-account/orders/123`
 
-On the admin order UI, the Bitcoin details are visible in a metabox:
+8. In the WooCommerce admin order UI, the Bitcoin details are visible in a metabox:
 
 ![Order metabox](./.wordpress-org/screenshot-6.png "Bitcoin address, amount paid, etc. visible on order UI")
 
-Addresses are saved as a custom post type and their status can be seen in a standard WordPress list table:
+9. WooCommerce's Action Scheduler regularly checks unpaid Bitcoin orders' addresses for new transactions, logs those transactions in the order notes, and marks the orders as paid once the expected amount of Bitcoin has been received.
+
+## Notes
+
+### Custom Post Types
+
+Payment addresses are saved as a custom post type and their status can be seen in a standard WordPress list table:
 
 ![Addresses List Table](./.wordpress-org/screenshot-7.png "Standard WordPress list table show addresses and their status and properties: related order, number of transactions, balance, derivation path, last modified date.")
 
+Similarly, wallet addresses (xpubs / master public keys) are saved as a custom post type.
 
-## TODO (nullcorps)
+### Templates
 
-MOSTLY DONE? - make it also work with blockstream.info's api, allow user to set preference but keep the other as a failover in case of rate limiting
-- does the failover work?
+All customer and admin UIs can be easily overridden using the standard WooCommerce templating system. 
 
-~~IN PROG - add a settings field to allow css hacks? or could this be done at the theme customer level. The css id's should be unique so why not?~~
-~~- well..whilst not a settings field, been adding ids to buttons etc which then mean you can do "additional css" bits in your theme options.~~
+### APIs
 
-~~IN PROG - idk, tidy it up a bit, remove any inline css~~
+Exchange rate:
 
-~~IN PROG (needs automating now) - auto refill addresses when running low, something like on payme page, self maintaining.~~
-~~- this just needs a shortcode or something with a silent version of the [woobtc_addresses] function which gets hit by a cron+wget or a web cron like montastic.com periodically to refill the addresses. Done manually atm when you go to the "check/refill addresses" page. (btw if you don't have one of those pages you need one - just add a blank page ad /addresses and put the [woobtc_addresses] shortcode in it. You'll need to run that page before it'll work)~~
+* [Bitfinex](https://www.bitfinex.com/) - [API](https://docs.bitfinex.com/docs) - default
+* [BitStamp](https://www.bitstamp.net/) - [API](https://www.bitstamp.net/api/) - implemented but not in use
 
-~~DITC - just before fresh address is linked to order in the postmeta, check past/present balances are still 0~~
+Transactions:
 
-- install/setup procedure?
-    - install plugin
-    - enable in woocommerce/settings/payments
-    - go into the settings page for btc payments
-    - get your xpub from electrum under wallet/information, it starts with xpubandthenalotofnumbers. Other wallet users google "how do i find my xpub [walletname]"
-    - paste that in, fill in the settings, should be self explanatory. Main one is re 0-conf transactions. Set to 0 to require confirmations for all transactions or set a price up to which you will accept 0-conf transactions (not really recommended since wiht the current high fees someone could send a tx with 1sat/byte fees and there's a good chance it would get bounced back to them, so waiting for a confirmation is recommended, but the option is there).
-    ~~- make a page at /addresses add the shortcode [woobtc_addresses]~~
-    ~~- visit that page, it should do a bunch of maths~~
-    ~~- refresh that page a few times, it should have a stack of 50 (or however many you set) addresses liksted and have finished scanning/updating and removing used ones~~
-    ~~- that should be about it really?~~
+* [SoChain](https://www.sochain.com/) - [API](https://sochain.com/api/) - default
+* [Blockchain.com](https://blockchain.com) - [API](https://www.blockchain.com/api) - implemented but not in use
+* [Blockstream.info](https://blockstream.info/) - [API](https://github.com/Blockstream/esplora/blob/master/API.md) - implemented but not in use
 
-- fee checking thing. So given the current fee situation and the threat of lowballing the fee and bouncing a 0-conf tx, perhaps enable 0-conf transactions up to the value specified as long as the fee is above e.g. a fixed value like 15s/b (low tech but easier to implement) or perhaps from some sort of fee estimating thing but it needs to be public api. check blockstream/blockchain.info. That way if the client cheaps out on the fee they have to wait for a confirmation, but honest users who just want it NOW get processed more quickly.
+### Syncing received payments with wallets
 
-~~- Automate the address refill process like on btcpayme~~
-    - add a "non-verbose" option to the [woobtc_addresses] thing which can be called from montastic or cron+wget
+Wallets only check a set number of derived addresses for payments and orders may be assigned an address outside the list your wallet is checking. If your store reports a payment has been received, you may need to configure your wallet to look at more addresses.
 
-* add mbtc as well as sats etc for ppl on default electrum settings (came up in testing)
+<details>
+<summary>E.g. Electrum Bitcoin Wallet</summary>
 
-* figure out wtf's needed to get this into the WP repo once it's at that point
-
-* DONE - ~~added "percentage discount for BTC payment" option (2021-11-02)~~ Removed by @BrianHenryIE, can be achieved with [Payment Gateway Based Fees and Discounts for WooCommerce plugin](https://wordpress.org/plugins/checkout-fees-for-woocommerce/)
-* DONE - integrate in SS (test)
-* DONE - integrate in FDV
-* DONE - integrate in MSL
-* DONE - integrate in TG
-* DONE - auto prune addresses which may have been used in the mean time (e.g. multiple instances?)
-* NOPE - maybe allow user-definable derivation paths? Do other wallets use something other than m/0/1? << HA! How about no(t right now anyway)
-* NOPE - give the option of QR from google images or local libary depending on privacy preference << meh, why?
-
-# Considerations:
-
-- depending on how busy your shop is, and the ratio of people who enter the checkout process vs those who complete the checkout process, there
-  will be quite a few addresses which remain unused. So say 1/10 people convert, you'll end up with 9 unusued addresses vs 1 used, which means
-  electrum might start to "fall behind" with how far ahead it's looking for payments which would then mean you could be receiving payments but
-  Electrum isn't checking the addresses that far ahead so you think you've not been paid, when actually you have. The payments are there but
-  Electrum's just not checking that far ahead on the addresses list.
-
-In this case you can set the lookahead value (gap limit?) for electrum from the electrum console (tab) by typing the following and your payments
-will magically appear:
-
+In the case of Electrum, in the menu choose `View`/`Show Console`, visit the `Console` tab, and set the lookahead value by typing the following:
 ```
 wallet.change_gap_limit(200)
 wallet.synchronize()
 ```
+See: https://bitcoin.stackexchange.com/questions/63641/how-to-list-all-the-hd-address-in-electrum
 
-see: https://bitcoin.stackexchange.com/questions/63641/how-to-list-all-the-hd-address-in-electrum
+</details>
 
+## TODO
 
-## TODO (BrianHenryIE)
+### <= v2.0
 
-* When the master key changes... flush the cache?
-* When the master key changes... generate addresses
-* Verify instructions are being sent in emails
-* Dependency injection container
-* Automatically cancel orders over one day -- with order note "no transactions at address..."
-* Show transactions in meta box on order page?
+* ~~Fix hard-coded log level (respect settings)~~
+* ~~WooCommerce Blocks checkout~~
+* Unpaid order expiry
+* Verify instructions are added to emails
+* 100% WPCS and PhpStan. JS + CSS linting.
+* Update screenshots + use mobile view for customer screenshots
+* Webpack build in GitHub Actions
 
-## Contributing
+### v2.0+
 
-Clone this repo, open in PhpStorm, then run `composer install` to install the dependencies:
+* Show transactions in meta box on order page
+* Zero-conf payments for virtual products (mempool). To avoid the threat of fraud where the fee is low-balled, only accept zero-conf transactions whose fees are above recent expected range
+* GitHub Actions for E2E tests
+* Run contract tests to find what currencies are supported by the Exchange_Rate APIs
+* Remove 'required' setting on checkout billing fields
+* API round-robin and failover
+* Partial payment email
+* Tor
+* Units: Add mbtc as well as sats etc. (to match default Electrum display settings)
+* Add: change payment method button below payment details, if a customer accidentally chooses/changes their mind
+* Read the issues and requests of other Bitcoin gateways
 
-```
-git clone https://github.com/brianhenryie/woocommerce-gateway-bitcoin.git;
-open -a PhpStorm ./;
-composer install;
-```
+## How You Can Help
 
-For integration and acceptance tests, a local webserver must be running with `localhost:8080/woocommerce-gateway-bitcoin/` pointing at the root of the repo. MariaDB (or MySQL) must also be running locally – with two databases set up with:
+Please contribute:
 
-```
-mysql_username="root"
-mysql_password="secret"
+* Directions and screenshots showing how to find master public key (xpub) in various wallets
+* Directions on enabling PHP GMP extension – even just notes on which hosts enabled it when requested or refused the request.
+* Bug reports
+* Feature requests, particularly UX related
+* Code review
+* Pull requests: read the [composer.json](https://github.com/BrianHenryIE/bh-wc-bitcoin-gateway/blob/master/composer.json) and see [BrianHenryIE/WordPress-Plugin-Boilerplate](https://github.com/BrianHenryIE/WordPress-Plugin-Boilerplate) to understand developer setup 
 
-# export PATH=${PATH}:/usr/local/mysql/bin
+## Motivation and Alternatives 
 
-# Make .env available 
-# Bash:
-export $(grep -v '^#' .env.testing | xargs)
-# Zsh:
-source .env.testing
+The previous Bitcoin gateway I used was initially chosen because payments were made directly to a custodial wallet. The company behind it eventually stopped supporting that and only offered the option of a hosted wallet. I also realised after using it for a while that when an order was made, the entire order contents – products, customer address etc. – were being sent to the company's API when the payment address was being generated by them. Totally unnecessary and definitely not GDPR compliant.
 
-# Create the database user:
-# MySQL
-mysql -u $mysql_username -p$mysql_password -e "CREATE USER '"$TEST_DB_USER"'@'%' IDENTIFIED WITH mysql_native_password BY '"$TEST_DB_PASSWORD"';";
-# MariaDB
-mysql -u $mysql_username -p$mysql_password -e "CREATE USER '"$TEST_DB_USER"'@'%' IDENTIFIED BY '"$TEST_DB_PASSWORD"';";
+Most existing solutions (see [WordPress.org plugin repo](https://wordpress.org/plugins/search/Bitcoin/)) suffer from one of the following:
 
-# Create the databases:
-mysql -u $mysql_username -p$mysql_password -e "CREATE DATABASE "$TEST_SITE_DB_NAME"; USE "$TEST_SITE_DB_NAME"; GRANT ALL PRIVILEGES ON "$TEST_SITE_DB_NAME".* TO '"$TEST_DB_USER"'@'%';";
-mysql -u $mysql_username -p$mysql_password -e "CREATE DATABASE "$TEST_DB_NAME"; USE "$TEST_DB_NAME"; GRANT ALL PRIVILEGES ON "$TEST_DB_NAME".* TO '"$TEST_DB_USER"'@'%';";
+* **Non-custodial wallet**. Funds are sent to a wallet managed by another company, which carries the risk of you losing funds due to their security incidents (unfortunately not uncommon), and gives them full view of your financial transactions.
+* **Sign-up required**. Many plugins are written to encourage the use of a particular API and this often requires signing up for an account with a third party who should be unconnected to your financial transactions.
+* **Profit motivated**. The purpose is often to upsell merchants to currency exchange services, or to charge a transaction fee for the use of the "free" plugin. 
 
-# Import the WordPress database:
-mysql -u $mysql_username -p$mysql_password $TEST_SITE_DB_NAME < tests/_data/dump.sql
-```
+I would like to acknowledge plugins similar to this one, who do not have any of those flaws:
 
-### WordPress Coding Standards
+* Sovereign Crypto Payments _by OnionBazaar_ – [WordPress.org](https://wordpress.org/plugins/sovereign-crypto-payments/) | [GitHub](https://github.com/onionbazaar/sovereign-crypto-payments)
+* Nomiddleman Bitcoin and Crypto Payments for WooCommerce – [WordPress.org](https://wordpress.org/plugins/nomiddleman-crypto-payments-for-woocommerce/) | [GitHub](https://github.com/nomiddleman/nomiddleman-woocommerce/)
+* Accept Bitcoin _by Bitonymous_ – [WordPress.org](https://wordpress.org/plugins/accept-bitcoin)
 
-See documentation on [WordPress.org](https://make.wordpress.org/core/handbook/best-practices/coding-standards/) and [GitHub.com](https://github.com/WordPress/WordPress-Coding-Standards).
+WooCommerce are themselves (officially) encouraging the use of crypto (see [It’s Time to Start Accepting Cryptocurrency](https://woocommerce.com/posts/start-accepting-cryptocurrency/), woocommerce.com, 2022-11-02) but the [plugins listed on their site](https://woocommerce.com/cryptocurrency/) are all by venture-capital backed companies.
 
-Correct errors where possible and list the remaining with:
+To use one of those plugins is to eschew Bitcoin's fundamental quality of being a peer-to-peer network.
 
-```
-composer lint
-```
+They are also contrary to WordPress's "open" philosophy. Using this plugin does not preclude you from using the services of any company, and it does not restrict or commit you to any company.
 
-### Tests
+Original development started by [NullCorps](https://github.com/Nullcorps) pre September 2020. BrianHenryIE forked and began using v1.x in March 2022. What helped prompt v2.0 was [Bob Dunn](https://bobwp.com)'s podcast episodes:
 
-Tests use the [Codeception](https://codeception.com/) add-on [WP-Browser](https://github.com/lucatume/wp-browser) and include vanilla PHPUnit tests with [WP_Mock](https://github.com/10up/wp_mock). 
-
-Run tests with:
-
-```
-vendor/bin/codecept run unit;
-vendor/bin/codecept run wpunit;
-vendor/bin/codecept run integration;
-vendor/bin/codecept run acceptance;
-```
-
-Show code coverage (unit+wpunit):
-
-```
-XDEBUG_MODE=coverage composer run-script coverage-tests 
-```
-
-```
-vendor/bin/phpstan analyse --memory-limit 1G
-```
-
-To save changes made to the acceptance database:
-
-```
-export $(grep -v '^#' .env.testing | xargs)
-mysqldump -u $TEST_SITE_DB_USER -p$TEST_SITE_DB_PASSWORD $TEST_SITE_DB_NAME > tests/_data/dump.sql
-```
-
-To clear Codeception cache after moving/removing test files:
-
-```
-vendor/bin/codecept clean
-```
-
-### More Information
-
-See [github.com/BrianHenryIE/WordPress-Plugin-Boilerplate](https://github.com/BrianHenryIE/WordPress-Plugin-Boilerplate) for initial setup rationale. 
+* [WooCommerce, Payments and Crypto with Keala Gaines and Dave Lockie](https://dothewoo.io/woocommerce-payments-and-crypto/), Doo the Woo, 2023-01-10
+* [Accepting Cryptocurrency in a WooCommerce Store with Lauren Dowling](https://dothewoo.io/cryptocurrency-woocommerce-store/), Doo the Woo, 2023-01-17
 
 # Acknowledgements
 
+This plugin is forked from [Nullcorps/woocommerce-gateway-bitcoin](https://github.com/Nullcorps/woocommerce-gateway-bitcoin) who figured out all the core functionality, i.e. the address generation, exchange rates, payment confirmations – everything Bitcoin related. The work here has been to implement that as a modern WordPress/WooCommerce plugin with Action Scheduler, CPTs, Composer, automated tests, WPCS, etc. Thank you, [NullCorps](https://github.com/Nullcorps)!
 
-Big thank you to [@orionwl](https://twitter.com/orionwl) for talking things through along the way and patiently explaining the maths side of it over and over till I get it :)
+> I think this stuff below is correct, but idk.
+>
+> It's free, go nuts. I'm just sticking things together to make stuff.
+>
+> – _Nullcorps_
 
-This uses the [Bitwasp library](https://github.com/Bit-Wasp/bitcoin-php) for all the maths heavy lifting, address generating etc. 
-
+Big thank you to [@orionwl](https://twitter.com/orionwl) for talking things through along the way and patiently explaining the maths side of it over and over till I get it :) – _Nullcorps_
