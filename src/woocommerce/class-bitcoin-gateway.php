@@ -53,13 +53,6 @@ class Bitcoin_Gateway extends WC_Payment_Gateway {
 	protected Settings_Interface $plugin_settings;
 
 	/**
-	 * A customisable message to show alongside the payment instructions.
-	 *
-	 * @var string
-	 */
-	protected string $instructions;
-
-	/**
 	 * Is this gateway enabled and has a payment address available.
 	 *
 	 * Previously we were using a static value in a method to store this, but that caused problems with tests, and
@@ -94,9 +87,8 @@ class Bitcoin_Gateway extends WC_Payment_Gateway {
 		$this->init_settings();
 
 		// Define user set variables.
-		$this->title        = $this->get_option( 'title' );
-		$this->description  = $this->get_option( 'description' );
-		$this->instructions = $this->get_option( 'instructions', $this->description );
+		$this->title       = $this->get_option( 'title' );
+		$this->description = $this->get_option( 'description' );
 
 		// Actions.
 		add_action( 'woocommerce_update_options_payment_gateways_' . $this->id, array( $this, 'process_admin_options' ) );
@@ -105,6 +97,8 @@ class Bitcoin_Gateway extends WC_Payment_Gateway {
 
 	/**
 	 * When saving the options, if the xpub is changed, initiate a background job to generate addresses.
+	 *
+	 * @see \WC_Settings_API::process_admin_options()
 	 *
 	 * @return bool
 	 */
@@ -148,14 +142,14 @@ class Bitcoin_Gateway extends WC_Payment_Gateway {
 
 		$settings_fields = array(
 
-			'enabled'               => array(
+			'enabled'      => array(
 				'title'   => __( 'Enable/Disable', 'bh-wc-bitcoin-gateway' ),
 				'type'    => 'checkbox',
 				'label'   => __( 'Enable Bitcoin Payment', 'bh-wc-bitcoin-gateway' ),
 				'default' => 'yes',
 			),
 
-			'title'                 => array(
+			'title'        => array(
 				'title'       => __( 'Title', 'bh-wc-bitcoin-gateway' ),
 				'type'        => 'text',
 				'description' => __( 'The payment method title the customer sees during checkout.', 'bh-wc-bitcoin-gateway' ),
@@ -163,54 +157,40 @@ class Bitcoin_Gateway extends WC_Payment_Gateway {
 				'desc_tip'    => false,
 			),
 
-			'description'           => array(
+			'description'  => array(
 				'title'       => __( 'Description', 'bh-wc-bitcoin-gateway' ),
 				'type'        => 'textarea',
-				'description' => __( 'Payment method description that the customer will beside the Place Order button.', 'bh-wc-bitcoin-gateway' ),
+				'description' => __( 'Text the customer will see when the gateway is chosen at checkout.', 'bh-wc-bitcoin-gateway' ),
 				'default'     => __( 'Pay quickly and easily with Bitcoin', 'bh-wc-bitcoin-gateway' ),
 				'desc_tip'    => false,
 			),
 
-			'instructions'          => array(
-				'title'       => __( 'Instructions', 'bh-wc-bitcoin-gateway' ),
-				'type'        => 'textarea',
-				'description' => __( 'Additional instructions to appear alongside the payment address and amount, after the order has been placed but before payment has been made.', 'bh-wc-bitcoin-gateway' ),
-				'default'     => 'NB: Please only send Bitcoin, which always has the ticker BTC, not any of the many clones. If you send coins other than Bitcoin (e.g. Bitcoin Cash) then those coins will be lost and your order will still not be paid.',
-				'desc_tip'    => false,
-			),
-
-			'xpub'                  => array(
-				'title'       => __( 'xpub', 'bh-wc-bitcoin-gateway' ),
+			'xpub'         => array(
+				'title'       => __( 'Master Public Key', 'bh-wc-bitcoin-gateway' ),
 				'type'        => 'text',
-				'description' => __( 'The xpub/zpub (master public key) for your HD wallet, which we use to locally generate the addresses to pay to (no API calls). Find it in Electrum under menu:wallet/information. It looks like <code>xpub1a2bc3d4longalphanumericstring</code>', 'bh-wc-bitcoin-gateway' ),
+				'description' => __( 'The xpub/ypub/zpub for your Bitcoin wallet, which we use to locally generate the addresses to pay to (no API calls). Find it in Electrum under menu:wallet/information. It looks like <code>xpub1a2bc3d4longalphanumericstring</code>', 'bh-wc-bitcoin-gateway' ),
 				'default'     => '',
 				'desc_tip'    => false,
 			),
-			// TODO: Show balance here.
 
-			'btc_rounding_decimals' => array(
-				'title'       => __( 'btc-rounding-decimals', 'bh-wc-bitcoin-gateway' ),
-				'type'        => 'text',
-				'description' => __( 'Integer, somewhere around 6 or 7 is probably ideal currently.', 'bh-wc-bitcoin-gateway' ),
-				'default'     => '7',
-				'desc_tip'    => false,
-			),
-
-			'price_margin'          => array(
-				'title'       => __( 'price-margin', 'bh-wc-bitcoin-gateway' ),
-				'type'        => 'text',
-				'description' => __( 'A percentage amount of shortfall from the shown price which will be accepted to allow for rounding errors. Recommend value between 0 and 3', 'bh-wc-bitcoin-gateway' ),
-				'default'     => '2',
-				'desc_tip'    => false,
+			'price_margin' => array(
+				'title'             => __( 'price-margin', 'bh-wc-bitcoin-gateway' ),
+				'type'              => 'number',
+				'description'       => __( 'A percentage shortfall from the shown price which will be accepted, to allow for volatility.', 'bh-wc-bitcoin-gateway' ),
+				'default'           => '2',
+				'custom_attributes' => array(
+					'min'  => 0,
+					'max'  => 100,
+					'step' => 1,
+				),
+				'desc_tip'          => false,
 			),
 
 		);
 		$saved_xpub = $this->plugin_settings->get_xpub( $this->id );
 		if ( ! empty( $saved_xpub ) ) {
-			$settings_fields['xpub']['description'] = $saved_xpub;
+			$settings_fields['xpub']['description'] = '<a href="' . esc_url( admin_url( 'edit.php?post_type=bh-bitcoin-address' ) ) . '">View addresses</a>';
 		}
-
-		$settings_fields['xpub']['description'] = $settings_fields['xpub']['description'] . ' <a href="' . esc_url( admin_url( 'edit.php?post_type=bh-bitcoin-address' ) ) . '">View addresses</a>';
 
 		$log_levels        = array( 'none', LogLevel::ERROR, LogLevel::WARNING, LogLevel::NOTICE, LogLevel::INFO, LogLevel::DEBUG );
 		$log_levels_option = array();
@@ -293,7 +273,7 @@ class Bitcoin_Gateway extends WC_Payment_Gateway {
 			 */
 			$btc_address = $api->get_fresh_address_for_order( $order );
 		} catch ( Exception $e ) {
-			// TODO: Log.
+			$this->logger->error( $e->getMessage(), array( 'exception' => $e ) );
 			throw new Exception( 'Unable to find Bitcoin address to send to. Please choose another payment method.' );
 		}
 
@@ -321,17 +301,6 @@ class Bitcoin_Gateway extends WC_Payment_Gateway {
 			'result'   => 'success',
 			'redirect' => $this->get_return_url( $order ),
 		);
-	}
-
-	/**
-	 * Get the instructions configured by the admin to display on the Thank You page.
-	 *
-	 * "Additional instructions to appear alongside the payment address and amount, after the order has been placed but before payment has been made."
-	 *
-	 * @return string
-	 */
-	public function get_instructions(): string {
-		return $this->settings['instructions'] ?? '';
 	}
 
 	/**

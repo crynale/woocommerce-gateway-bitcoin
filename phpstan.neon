@@ -22,6 +22,14 @@ parameters:
         - wp-content/plugins/woocommerce
         - vendor/wp-cli
     ignoreErrors:
+        - # WC_Settings_API::process_admin_options() specifies the bool return, but add_action does not expect any.
+          message: '#Action callback returns bool but should not return anything.#'
+          path: src/woocommerce/class-bitcoin-gateway.php
+        - # We pass the plugin_object array when registering the post type.
+          message: '#Access to an undefined property WP_Post_Type::\$plugin_objects.#'
+          paths:
+            - src/admin/class-wallets-list-table.php
+            - src/admin/class-addresses-list-table.php
         # LoggerAwareTrait allows for null $logger, but we set it in the constructor.
         - '#LoggerInterface\|null#'
         # PHPStan show errors when filters have more than two parameters.
@@ -30,3 +38,5 @@ parameters:
         # - '/Parameter .* of .* expects .* given\./'
         # Setting an empty array with type associative array in the PhpDoc prints this.
         - '/does not accept default value of type array.{3}$/'
+        # Sometimes seems to not find the test parent class's methods.
+        - '/Call to an undefined method.*(make|assert).*/'

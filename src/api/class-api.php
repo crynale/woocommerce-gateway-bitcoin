@@ -13,6 +13,8 @@
 
 namespace BrianHenryIE\WC_Bitcoin_Gateway\API;
 
+use BrianHenryIE\WC_Bitcoin_Gateway\API\Blockchain\Blockchain_Info_API;
+use BrianHenryIE\WC_Bitcoin_Gateway\API\Blockchain\Blockstream_Info_API;
 use DateTime;
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -61,7 +63,7 @@ class API implements API_Interface {
 		$this->bitcoin_wallet_factory  = $bitcoin_wallet_factory;
 		$this->bitcoin_address_factory = $bitcoin_address_factory;
 
-		$this->bitcoin_api = new SoChain_API( $logger );
+		$this->bitcoin_api = new Blockstream_Info_API( $logger );
 
 		$this->generate_address_api = new BitWasp_API( $logger );
 
@@ -569,7 +571,11 @@ class API implements API_Interface {
 	}
 
 	/**
-	 * @param string $currency 'USD'|'EUR'|'GBP'.
+	 * Get the BTC value of another currency amount.
+	 *
+	 * Rounds to ~6 decimal places.
+	 *
+	 * @param string $currency 'USD'|'EUR'|'GBP', maybe others.
 	 * @param float  $fiat_amount This is stored in the WC_Order object as a float.
 	 *
 	 * @return string Bitcoin amount.
@@ -581,7 +587,11 @@ class API implements API_Interface {
 
 		$float_result = $fiat_amount / floatval( $exchange_rate );
 
-		return (string) $float_result;
+		// This is a good number for January 2023, 0.000001 BTC = 0.02 USD.
+		// TODO: Calculate the appropriate number of decimals on the fly.
+		$num_decimal_places = 6;
+		$string_result      = (string) wc_round_discount( $float_result, $num_decimal_places + 1 );
+		return rtrim( $string_result, '012345' );
 	}
 
 	/**
