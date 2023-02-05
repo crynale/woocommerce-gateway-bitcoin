@@ -15,6 +15,8 @@ namespace BrianHenryIE\WC_Bitcoin_Gateway;
 
 use BrianHenryIE\WC_Bitcoin_Gateway\Admin\Dependencies_Notice;
 use BrianHenryIE\WC_Bitcoin_Gateway\Admin\Register_List_Tables;
+use BrianHenryIE\WC_Bitcoin_Gateway\Integrations\Woo_Cancel_Abandoned_Order;
+use BrianHenryIE\WC_Bitcoin_Gateway\WooCommerce\HPOS;
 use BrianHenryIE\WC_Bitcoin_Gateway\WooCommerce\Order;
 use Exception;
 use BrianHenryIE\WC_Bitcoin_Gateway\Action_Scheduler\Background_Jobs;
@@ -100,7 +102,11 @@ class BH_WC_Bitcoin_Gateway {
 		$this->define_admin_order_ui_hooks();
 		$this->define_wp_list_page_ui_hooks();
 
+		$this->define_woocommerce_features_hooks();
+
 		$this->define_cli_commands();
+
+		$this->define_integration_woo_cancel_abandoned_order_hooks();
 	}
 
 	/**
@@ -178,7 +184,7 @@ class BH_WC_Bitcoin_Gateway {
 	 */
 	protected function define_template_hooks(): void {
 
-		$templates = new Templates();
+		$templates = new Templates( $this->settings );
 
 		add_filter( 'wc_get_template', array( $templates, 'load_bitcoin_templates' ), 10, 5 );
 	}
@@ -216,7 +222,7 @@ class BH_WC_Bitcoin_Gateway {
 	 */
 	protected function define_thank_you_hooks(): void {
 
-		$thank_you = new Thank_You( $this->api );
+		$thank_you = new Thank_You( $this->api, $this->logger );
 
 		add_action( 'woocommerce_thankyou', array( $thank_you, 'print_instructions' ), 5 );
 	}
@@ -237,7 +243,7 @@ class BH_WC_Bitcoin_Gateway {
 	 */
 	protected function define_my_account_hooks(): void {
 
-		$my_account_order = new My_Account_View_Order( $this->api );
+		$my_account_order = new My_Account_View_Order( $this->api, $this->logger );
 
 		add_action( 'woocommerce_view_order', array( $my_account_order, 'print_status_instructions' ), 9 );
 	}
@@ -276,6 +282,16 @@ class BH_WC_Bitcoin_Gateway {
 	}
 
 	/**
+	 * Declare compatibility with WooCommerce High Performace Order Storage.
+	 */
+	protected function define_woocommerce_features_hooks(): void {
+
+		$hpos = new HPOS( $this->settings );
+
+		add_action( 'before_woocommerce_init', array( $hpos, 'declare_compatibility' ) );
+	}
+
+	/**
 	 * Register WP CLI commands.
 	 *
 	 * `wp bh-bitcoin generate-new-addresses`
@@ -294,6 +310,19 @@ class BH_WC_Bitcoin_Gateway {
 		} catch ( Exception $e ) {
 			$this->logger->error( 'Failed to register WP CLI commands: ' . $e->getMessage(), array( 'exception' => $e ) );
 		}
+	}
+
+	/**
+	 * Add filters to enable support for WooCommerce Cancel Abandoned Order plugin.
+	 *
+	 * @see https://wordpress.org/plugins/woo-cancel-abandoned-order/
+	 */
+	protected function define_integration_woo_cancel_abandoned_order_hooks(): void {
+
+		$woo_cancel_abandoned_order = new Woo_Cancel_Abandoned_Order( $this->api );
+
+		add_filter( 'woo_cao_gateways', array( $woo_cancel_abandoned_order, 'enable_cao_for_bitcoin' ) );
+		add_filter( 'woo_cao_before_cancel_order', array( $woo_cancel_abandoned_order, 'abort_canceling_partially_paid_order' ), 10, 3 );
 	}
 
 }

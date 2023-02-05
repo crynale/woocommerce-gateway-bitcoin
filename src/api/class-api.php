@@ -26,7 +26,6 @@ use BrianHenryIE\WC_Bitcoin_Gateway\API\Addresses\Bitcoin_Wallet;
 use BrianHenryIE\WC_Bitcoin_Gateway\API\Addresses\Bitcoin_Wallet_Factory;
 use BrianHenryIE\WC_Bitcoin_Gateway\API\Exchange_Rate\Bitfinex_API;
 use BrianHenryIE\WC_Bitcoin_Gateway\API\Addresses\BitWasp_API;
-use BrianHenryIE\WC_Bitcoin_Gateway\API\Blockchain\SoChain_API;
 use BrianHenryIE\WC_Bitcoin_Gateway\API_Interface;
 use BrianHenryIE\WC_Bitcoin_Gateway\Settings_Interface;
 use BrianHenryIE\WC_Bitcoin_Gateway\WooCommerce\Order;
@@ -299,7 +298,7 @@ class API implements API_Interface {
 		$btc_xpub_address_string = $order->get_meta( Order::BITCOIN_ADDRESS_META_KEY );
 
 		if ( empty( $btc_xpub_address_string ) ) {
-			$this->logger->error( "`shop_order:{$order->get_id()} has no Bitcoin address.", array( 'order_id' => $order->get_id() ) );
+			$this->logger->warning( "`shop_order:{$order->get_id()}` has no Bitcoin address.", array( 'order_id' => $order->get_id() ) );
 			throw new Exception( 'Order has no Bitcoin address.' );
 		}
 
@@ -366,7 +365,9 @@ class API implements API_Interface {
 					}
 				);
 
-				// Sum the transactions with the required number of confirmations.
+				$result['transactions'] = $order_transactions;
+
+					// Sum the transactions with the required number of confirmations.
 				$result['btc_amount_received'] = array_reduce(
 					$order_transactions,
 					function( float $carry, array $transaction ) use ( $gateway_num_required_confirmations ): float {
@@ -538,8 +539,8 @@ class API implements API_Interface {
 		} else {
 			$to = $from + DAY_IN_SECONDS;
 		}
-		$exchange_rate_url                  = "https://www.blockchain.com/prices/BTC?from={$from}&to={$to}&timeSpan=custom&scale=0&style=line";
-		$order_details['exchange_rate_url'] = $exchange_rate_url;
+		$exchange_rate_url           = "https://www.blockchain.com/prices/BTC?from={$from}&to={$to}&timeSpan=custom&scale=0&style=line";
+		$result['exchange_rate_url'] = $exchange_rate_url;
 
 		// Unchanged data.
 		foreach ( array( 'order', 'btc_total', 'btc_exchange_rate', 'btc_address', 'transactions', 'btc_amount_received', 'status' ) as $key ) {
@@ -582,7 +583,7 @@ class API implements API_Interface {
 	 */
 	public function convert_fiat_to_btc( string $currency, float $fiat_amount ): string {
 
-		// 1 BTC = xx USD
+		// 1 BTC = xx USD.
 		$exchange_rate = $this->get_exchange_rate( $currency );
 
 		$float_result = $fiat_amount / floatval( $exchange_rate );
@@ -591,7 +592,7 @@ class API implements API_Interface {
 		// TODO: Calculate the appropriate number of decimals on the fly.
 		$num_decimal_places = 6;
 		$string_result      = (string) wc_round_discount( $float_result, $num_decimal_places + 1 );
-		return rtrim( $string_result, '012345' );
+		return $string_result;
 	}
 
 	/**

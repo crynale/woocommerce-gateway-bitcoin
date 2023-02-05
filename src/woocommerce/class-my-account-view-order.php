@@ -10,21 +10,42 @@
 namespace BrianHenryIE\WC_Bitcoin_Gateway\WooCommerce;
 
 use BrianHenryIE\WC_Bitcoin_Gateway\API_Interface;
+use Exception;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\LoggerInterface;
 use WC_Order;
 
+/**
+ * Get the order details and pass them to the my-account order ui template.
+ */
 class My_Account_View_Order {
+	use LoggerAwareTrait;
 
+	/**
+	 * Check is it a Bitcoin order.
+	 * Get the order details.
+	 */
 	protected API_Interface $api;
 
 	const TEMPLATE_NAME = 'myaccount/view-order-bitcoin-instructions-status.php';
 
-	public function __construct( API_Interface $api ) {
+	/**
+	 * Constructor
+	 *
+	 * @param API_Interface   $api The main plugin functions.
+	 * @param LoggerInterface $logger A PSR logger.
+	 */
+	public function __construct( API_Interface $api, LoggerInterface $logger ) {
+		$this->setLogger( $logger );
 		$this->api = $api;
 	}
 
 	/**
+	 * If it is a Bitcoin order being displayed, print the payment details, via template.
 	 *
 	 * @hooked woocommerce_view_order
+	 *
+	 * @param int $order_id The id of the order being viewed.
 	 */
 	public function print_status_instructions( int $order_id ): void {
 
@@ -32,10 +53,27 @@ class My_Account_View_Order {
 			return;
 		}
 
-		/** @var WC_Order $order */
+		/**
+		 * This is definitely an order object. For it to be a Bitcoin order, it first must be an order.
+		 *
+		 * @var WC_Order $order
+		 */
 		$order = wc_get_order( $order_id );
 
-		$template_args = $this->api->get_formatted_order_details( $order, false );
+		try {
+			$template_args = $this->api->get_formatted_order_details( $order, false );
+		} catch ( Exception $exception ) {
+			// Exception occurs when an order has no Bitcoin address, e.g. if there was a problem fetching one as the
+			// order was created.
+			$this->logger->warning(
+				"Failed to get `shop_order:{$order_id}` details for my-account template: {$exception->getMessage()}",
+				array(
+					'order_id'  => $order_id,
+					'exception' => $exception,
+				)
+			);
+			return;
+		}
 
 		$template_args['template'] = self::TEMPLATE_NAME;
 

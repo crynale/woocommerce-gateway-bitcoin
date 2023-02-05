@@ -1,5 +1,6 @@
 <?php
 /**
+ * Print the payment details on the Thank You / order-received page.
  *
  * TODO: JS to scroll to the payment details.
  *
@@ -9,10 +10,16 @@
 namespace BrianHenryIE\WC_Bitcoin_Gateway\WooCommerce;
 
 use BrianHenryIE\WC_Bitcoin_Gateway\API_Interface;
+use Exception;
+use Psr\Log\LoggerAwareTrait;
+use Psr\Log\LoggerInterface;
 use WC_Order;
 
+/**
+ * Get the order details and pass them to the thank you page template.
+ */
 class Thank_You {
-
+	use LoggerAwareTrait;
 	const TEMPLATE_NAME = 'checkout/thankyou-bitcoin-instructions-status.php';
 
 	/**
@@ -27,9 +34,11 @@ class Thank_You {
 	/**
 	 * Constructor
 	 *
-	 * @param API_Interface $api The main plugin functions.
+	 * @param API_Interface   $api The main plugin functions.
+	 * @param LoggerInterface $logger A PSR logger.
 	 */
-	public function __construct( API_Interface $api ) {
+	public function __construct( API_Interface $api, LoggerInterface $logger ) {
+		$this->setLogger( $logger );
 		$this->api = $api;
 	}
 
@@ -57,7 +66,19 @@ class Thank_You {
 		 */
 		$order = wc_get_order( $order_id );
 
-		$template_args = $this->api->get_formatted_order_details( $order, false );
+		try {
+			$template_args = $this->api->get_formatted_order_details( $order, false );
+		} catch ( Exception $exception ) {
+			// Exception sometimes occurs when an order has no Bitcoin address, although that's not likely the case here.
+			$this->logger->warning(
+				"Failed to get `shop_order:{$order_id}` details for Thank You template: {$exception->getMessage()}",
+				array(
+					'order_id'  => $order_id,
+					'exception' => $exception,
+				)
+			);
+			return;
+		}
 
 		$template_args['template'] = self::TEMPLATE_NAME;
 

@@ -46,23 +46,26 @@ class Order_Unit_Test extends \Codeception\Test\Unit {
 
 		$order_id = '123';
 
+		$action_id = '456';
+
 		\WP_Mock::userFunction(
-			'wc_get_is_paid_statuses',
+			'as_get_scheduled_actions',
 			array(
+				'args'   => array( \WP_Mock\Functions::type( 'array' ) ),
 				'times'  => 1,
-				'return' => array( 'processing', 'completed' ),
+				'return' => array( $action_id => array( 'action' ) ),
 			)
 		);
 
 		\WP_Mock::userFunction(
 			'as_unschedule_action',
 			array(
+				'args'  => array( 'bh_wc_bitcoin_gateway_check_unpaid_order', \WP_Mock\Functions::type( 'array' ) ),
 				'times' => 1,
 			)
 		);
 
 		$sut->unschedule_check_for_transactions( $order_id, 'on-hold', 'processing' );
-
 	}
 
 	/**
@@ -81,14 +84,6 @@ class Order_Unit_Test extends \Codeception\Test\Unit {
 		$sut = new Order( $api, $logger );
 
 		$order_id = '123';
-
-		\WP_Mock::userFunction(
-			'wc_get_is_paid_statuses',
-			array(
-				'times'  => 1,
-				'return' => array( 'processing', 'completed' ),
-			)
-		);
 
 		\WP_Mock::userFunction(
 			'as_unschedule_action',
@@ -116,14 +111,6 @@ class Order_Unit_Test extends \Codeception\Test\Unit {
 		$sut = new Order( $api, $logger );
 
 		$order_id = '123';
-
-		\WP_Mock::userFunction(
-			'wc_get_is_paid_statuses',
-			array(
-				'times'  => 1,
-				'return' => array( 'processing', 'completed' ),
-			)
-		);
 
 		\WP_Mock::userFunction(
 			'as_unschedule_action',

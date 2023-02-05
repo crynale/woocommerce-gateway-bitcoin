@@ -7,6 +7,7 @@
 
 namespace BrianHenryIE\WC_Bitcoin_Gateway\WooCommerce;
 
+use ActionScheduler;
 use BrianHenryIE\WC_Bitcoin_Gateway\Action_Scheduler\Background_Jobs;
 use BrianHenryIE\WC_Bitcoin_Gateway\API_Interface;
 use Psr\Log\LoggerAwareTrait;
@@ -80,7 +81,9 @@ class Order {
 	}
 
 	/**
-	 * When an order's status is set to "on-hold", schedule a background job to check for payments.
+	 * When an order's status changes away from "pending" and "on-hold", cancel the scheduled background.
+	 *
+	 * E.g. when the order is paid or canceled.
 	 *
 	 * @hooked woocommerce_order_status_changed
 	 * @see WC_Order::status_transition()
@@ -91,7 +94,7 @@ class Order {
 	 */
 	public function unschedule_check_for_transactions( int $order_id, string $status_from, string $status_to ): void {
 
-		if ( ! in_array( $status_to, wc_get_is_paid_statuses(), true ) ) {
+		if ( in_array( $status_to, array( 'pending', 'on-hold' ), true ) ) {
 			return;
 		}
 
@@ -99,9 +102,32 @@ class Order {
 			return;
 		}
 
-		$hook = Background_Jobs::CHECK_UNPAID_ORDER_HOOK;
-		$args = array( 'order_id' => $order_id );
+		if ( empty( $status_to ) ) {
+			$status_to = 'trash?';
+		}
 
-		as_unschedule_action( $hook, $args );
+		$context = array(
+			'order_id'    => $order_id,
+			'status_from' => $status_from,
+			'status_to'   => $status_to,
+		);
+
+		$hook  = Background_Jobs::CHECK_UNPAID_ORDER_HOOK;
+		$args  = array( 'order_id' => $order_id );
+		$query = array(
+			'hook' => $hook,
+			'args' => $args,
+		);
+
+		$context['action_scheduler_query'] = $query;
+
+		$actions = as_get_scheduled_actions( $query );
+		if ( ! empty( $actions ) ) {
+			$action_id = array_key_first( $actions );
+			$this->logger->debug( "`shop_order:{$order_id}` status changed from $status_from to $status_to, running `as_unschedule_action` for check_unpaid_order job, action_id $action_id.", $context );
+			as_unschedule_action( $hook, $args );
+		} else {
+			$this->logger->debug( "`shop_order:{$order_id}` status changed from $status_from to $status_to. No check_unpaid_order background job present to cancel.", $context );
+		}
 	}
 }

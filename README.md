@@ -109,9 +109,19 @@ See: https://bitcoin.stackexchange.com/questions/63641/how-to-list-all-the-hd-ad
 
 ### Complementary Plugins
 
-* [Payment Gateway Based Fees and Discounts for WooCommerce](https://wordpress.org/plugins/checkout-fees-for-woocommerce/)
-* [WooCommerce Cancel Abandoned Order](https://wordpress.org/plugins/woo-cancel-abandoned-order/)
-* [Set WooCommerce Payment Gateway by URL](https://wordpress.org/plugins/bh-wc-set-gateway-by-url/)
+* WooCommerce Cancel Abandoned Order  
+[WordPress.org](https://wordpress.org/plugins/woo-cancel-abandoned-order/) | [GitHub](https://github.com/rvola/woo-cancel-abandoned-order)    
+Automatically clean up unpaid orders after x days. Partially paid orders will not be canceled.
+
+
+* Payment Gateway Based Fees and Discounts for WooCommerce  
+[WordPress.org](https://wordpress.org/plugins/checkout-fees-for-woocommerce/) | [GitHub](https://github.com/TycheSoftwares/checkout-fees-for-woocommerce)  
+Offer a discount for paying with Bitcoin.
+
+
+* Set WooCommerce Payment Gateway by URL  
+[WordPress.org](https://wordpress.org/plugins/bh-wc-set-gateway-by-url/) | [GitHub](https://github.com/BrianHenryIE/bh-wc-set-gateway-by-url)  
+Pre-select Bitcoin at checkout when sending emails to customers.
 
 ## TODO
 
@@ -119,10 +129,10 @@ See: https://bitcoin.stackexchange.com/questions/63641/how-to-list-all-the-hd-ad
 
 * ~~Fix hard-coded log level (respect settings)~~
 * ~~WooCommerce Blocks checkout~~
-* Verify instructions are added to emails
+* ~~Verify instructions are added to emails~~
 * 100% WPCS and PhpStan. JS + CSS linting.
 * Update screenshots + use mobile view for customer screenshots
-* Webpack build in GitHub Actions
+* ~~Webpack build in GitHub Actions~~
 
 ### v2.0+
 
@@ -132,6 +142,7 @@ See: https://bitcoin.stackexchange.com/questions/63641/how-to-list-all-the-hd-ad
 * Run contract tests to find what currencies are supported by the Exchange_Rate APIs
 * Remove 'required' setting on checkout billing fields
 * API round-robin and failover
+* CLI commands
 * Template for paid orders
 * Partial payment email
 * Delay order-received/on-hold email for an hour; check for payment in mempool
@@ -151,6 +162,8 @@ Please contribute:
 * Feature requests, particularly UX related
 * Code review
 * Pull requests: read the [composer.json](https://github.com/BrianHenryIE/bh-wc-bitcoin-gateway/blob/master/composer.json) and see [BrianHenryIE/WordPress-Plugin-Boilerplate](https://github.com/BrianHenryIE/WordPress-Plugin-Boilerplate) to understand developer setup 
+
+And please share the plugin with others!
 
 ## Motivation and Alternatives 
 

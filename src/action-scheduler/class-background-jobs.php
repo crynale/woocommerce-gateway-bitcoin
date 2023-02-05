@@ -55,22 +55,27 @@ class Background_Jobs {
 	 */
 	public function check_unpaid_order( int $order_id ): void {
 
+		$context = array();
+
 		// How to find the action_id of the action currently being run?
 		$query = array(
 			'hook' => self::CHECK_UNPAID_ORDER_HOOK,
 			'args' => array( 'order_id' => $order_id ),
 		);
 
+		$context['query'] = $query;
+
 		$action_id = ActionScheduler::store()->query_action( $query );
 		$claim_id  = ActionScheduler::store()->get_claim_id( $action_id );
 
+		$context['order_id']  = $order_id;
+		$context['task']      = $query;
+		$context['action_id'] = $action_id;
+		$context['claim_id']  = $claim_id;
+
 		$this->logger->debug(
-			"Running check_unpaid_order background task for action id: {$action_id}, claim id: {$claim_id}",
-			array(
-				'task'      => $query,
-				'action_id' => $action_id,
-				'claim_id'  => $claim_id,
-			)
+			"Running check_unpaid_order background task for `shop_order:{$order_id}` action id: {$action_id}, claim id: {$claim_id}",
+			$context
 		);
 
 		$order = wc_get_order( $order_id );
@@ -107,7 +112,7 @@ class Background_Jobs {
 
 	/**
 	 * After new addresses have been created, we check to see are they fresh/available to use.
-	 * It's not unlikely we'll hit 429 rate limits during this, so we'll loop through as many as we can,
+	 * TODO It's not unlikely we'll hit 429 rate limits during this, so we'll loop through as many as we can,
 	 * then schedule a new job when we're told to stop.
 	 *
 	 * @hooked bh_wc_bitcoin_gateway_check_new_addresses_transactions
@@ -117,7 +122,7 @@ class Background_Jobs {
 
 		$this->logger->debug( 'Starting check_new_addresses_for_transactions() background job.' );
 
-		$this->api->check_new_addresses_for_transactions();
+		$result = $this->api->check_new_addresses_for_transactions();
 	}
 
 }
