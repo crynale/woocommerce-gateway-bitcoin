@@ -14,186 +14,208 @@
 // http://localhost:8084/wp-admin/site-health.php
 // "Your site could not complete a loopback request"
 
-jest.setTimeout(60000);
+jest.setTimeout( 60000 );
 
-const {
-    merchant
-} = require( '@woocommerce/e2e-utils' );
-
-const config = require( 'config' );
+const { merchant } = require( '@woocommerce/e2e-utils' );
 
 const configureBitcoinXpub = require( './configure-bitcoin-xpub.before.js' );
 const placeBitcoinOrderBefore = require( './place-bitcoin-order.before.js' );
 
-describe('Generate new addresses', () => {
+describe( 'Generate new addresses', () => {
+	// Configure the gateway.
+	beforeAll( async () => {
+		await merchant.login();
+		await configureBitcoinXpub();
+	} );
 
-    // Configure the gateway.
-    beforeAll(async () => {
-        await merchant.login();
-        await configureBitcoinXpub();
-    });
+	it( 'should generate addresses when number available falls below 50', async () => {
+		// Arrange.
+		// API class says if the number drops below 50, it will generate 25 new ones.
+		// Delete unused addresses until there are only 50 remaining.
 
-    it('should generate addresses when number available falls below 50', async () => {
+		await merchant.login();
 
-        // Arrange.
-        // API class says if the number drops below 50, it will generate 25 new ones.
-        // Delete unused addresses until there are only 50 remaining.
+		// Visit list of unused addresses.
+		await page.goto(
+			'http://localhost:8084/wp-admin/edit.php?post_type=bh-bitcoin-address&post_status=unused',
+			{
+				waitUntil: 'networkidle0',
+			}
+		);
 
-        await merchant.login();
+		// Get count of unused addresses.
+		let unusedAddressCountElement = await page.$( '.unused a .count' );
+		let unusedAddressCountText = await page.evaluate(
+			( element ) => element.textContent,
+			unusedAddressCountElement
+		);
+		let unusedAddressCountNum = unusedAddressCountText.replace(
+			/[^\d]/g,
+			''
+		);
 
-        // Visit list of unused addresses.
-        await page.goto( 'http://localhost:8084/wp-admin/edit.php?post_type=bh-bitcoin-address&post_status=unused', {
-            waitUntil: 'networkidle0',
-        } );
+		do {
+			// Use `setCheckbox()`?
+			await page.waitForSelector( '#cb-select-all-1' );
+			await page.click( '#cb-select-all-1' );
+			// Select the "bulk actions" > "trash" option.
+			await page.select( '#bulk-action-selector-top', 'trash' );
+			// Submit the form to send all draft/scheduled/published posts to the trash.
+			await page.click( '#doaction' );
+			await page.waitForXPath(
+				'//*[contains(@class, "updated notice")]/p[contains(text(), "moved to the Trash.")]'
+			);
 
-        // Get count of unused addresses.
-        var unusedAddressCountElement = await page.$('.unused a .count');
-        var unusedAddressCountText = await page.evaluate(element => element.textContent, unusedAddressCountElement);
-        var unusedAddressCountNum = unusedAddressCountText.replace(/[^\d]/g, '');
+			unusedAddressCountElement = await page.$( '.unused a .count' );
+			unusedAddressCountText = await page.evaluate(
+				( element ) => element.textContent,
+				unusedAddressCountElement
+			);
+			unusedAddressCountNum = unusedAddressCountText.replace(
+				/[^\d]/g,
+				''
+			);
+		} while ( unusedAddressCountNum >= 50 );
 
-        console.log( 'unusedAddressCountNum: ' + unusedAddressCountNum );
+		// Act.
+		// Place an order – which should create a background job to generate the addresses.
+		// Invoke cron – which should generate them.
+		await placeBitcoinOrderBefore();
 
-        do {
-            // Use `setCheckbox()`?
-            await page.waitForSelector('#cb-select-all-1');
-            await page.click('#cb-select-all-1');
-            // Select the "bulk actions" > "trash" option.
-            await page.select('#bulk-action-selector-top', 'trash');
-            // Submit the form to send all draft/scheduled/published posts to the trash.
-            await page.click('#doaction');
-            await page.waitForXPath(
-                '//*[contains(@class, "updated notice")]/p[contains(text(), "moved to the Trash.")]'
-            );
+		// Open Action Scheduler and look for the event.
 
-            unusedAddressCountElement = await page.$('.unused a .count');
-            unusedAddressCountText = await page.evaluate(element => element.textContent, unusedAddressCountElement);
-            unusedAddressCountNum = unusedAddressCountText.replace(/[^\d]/g, '');
+		const actionSchedulerUrl =
+			'http://localhost:8084/wp-admin/tools.php?page=action-scheduler&status=pending';
+		await page.goto( actionSchedulerUrl, { waitUntil: 'networkidle0' } );
 
-        } while ( unusedAddressCountNum >= 50 );
+		let [ pendingJobName ] = await page.$x(
+			`//td[@data-colname="Hook"][contains(text(), "bh_wc_bitcoin_gateway_generate_new_addresses")]`
+		);
 
-        console.log( 'unusedAddressCountNum: ' + unusedAddressCountNum );
+		if ( pendingJobName ) {
+			// Focus to unveil actions.
+			await pendingJobName.focus();
 
+			const runLink = await pendingJobName.$( '.run a' );
 
-        // Act.
-        // Place an order – which should create a background job to generate the addresses.
-        // Invoke cron – which should generate them.
-        await placeBitcoinOrderBefore();
+			if ( runLink ) {
+				runLink.focus();
+				await Promise.all( [
+					page.keyboard.press( 'Enter' ),
+					page.waitForNavigation( {
+						waitUntil: 'networkidle0',
+					} ),
+				] );
+				// await runLink.click();
+			}
 
+			[ pendingJobName ] = await page.$x(
+				`//td[@data-colname="Hook"][contains(text(), "bh_wc_bitcoin_gateway_generate_new_addresses")]`
+			);
+		}
 
-        // Open Action Scheduler and look for the event.
+		await page.goto(
+			'http://localhost:8084/wp-admin/edit.php?post_type=bh-bitcoin-address',
+			{
+				waitUntil: 'networkidle0',
+			}
+		);
 
-        let actionSchedulerUrl = 'http://localhost:8084/wp-admin/tools.php?page=action-scheduler&status=pending';
-        await page.goto( actionSchedulerUrl, {waitUntil: 'networkidle0',} );
+		// The corresponding background job to check the newly derived addresses for existing transactions should run now.
+		let unknownAddressCountElement = await page.$( '.unknown a .count' );
+		while ( unknownAddressCountElement ) {
+			await new Promise( ( r ) => setTimeout( r, 1000 ) );
 
-        var [pendingJobName] = await page.$x(`//td[@data-colname="Hook"][contains(text(), "bh_wc_bitcoin_gateway_generate_new_addresses")]`);
+			await page.goto(
+				'http://localhost:8084/wp-admin/edit.php?post_type=bh-bitcoin-address',
+				{
+					waitUntil: 'networkidle0',
+				}
+			);
 
-        if (!pendingJobName) {
+			unknownAddressCountElement = await page.$( '.unknown a .count' );
+		}
 
-            console.log( 'Did not find bh_wc_bitcoin_gateway_generate_new_addresses job in pending actions. BAD?');
+		// Assert.
+		const updatedUnusedAddressCountElement = await page.$(
+			'.unused a .count'
+		);
+		const updatedUnusedAddressCountText = await page.evaluate(
+			( element ) => element.textContent,
+			updatedUnusedAddressCountElement
+		);
+		let updatedUnusedAddressCountNumAfter = updatedUnusedAddressCountText.replace(
+			/[\D]/g,
+			''
+		);
 
-        } else {
+		updatedUnusedAddressCountNumAfter = parseInt(
+			updatedUnusedAddressCountNumAfter
+		);
 
-            var tdText = await page.evaluate(element => element.textContent, pendingJobName);
-            // tdText: bh_wc_bitcoin_gateway_generate_new_addressesRun | CancelShow more details
-            console.log('tdText: ' + tdText);
+		expect( updatedUnusedAddressCountNumAfter ).toBeGreaterThanOrEqual(
+			50
+		);
+	} );
 
-            // Focus to unveil actions.
-            await pendingJobName.focus();
+	it( 'should correctly report the all addresses count', async () => {
+		await merchant.login();
 
-            var runLink = await pendingJobName.$('.run a');
+		await page.goto(
+			'http://localhost:8084/wp-admin/edit.php?post_type=bh-bitcoin-address',
+			{
+				waitUntil: 'networkidle0',
+			}
+		);
 
-            if( runLink) {
+		// Filter posts list
+		// All (0) |
+		// Unused (54) |
+		// Assigned (21)
 
-                runLink.focus();
-                await Promise.all([page.keyboard.press('Enter'), page.waitForNavigation({
-                    waitUntil: 'networkidle0'
-                })]);
-                // await runLink.click();
-            } else {
-                console.log( 'runLink not found (.run a)');
-            }
+		// .subsubsub .all a .count
+		// .subsubsub .unused a .count
+		// .subsubsub .assigned a .count
 
-            [pendingJobName] = await page.$x(`//td[@data-colname="Hook"][contains(text(), "bh_wc_bitcoin_gateway_generate_new_addresses")]`);
+		const allAddressCountElement = await page.$( '.all a .count' );
+		const allAddressCountText = await page.evaluate(
+			( element ) => element.textContent,
+			allAddressCountElement
+		);
+		let allAddressCountNum = allAddressCountText.replace( /[\D]/g, '' );
+		allAddressCountNum = parseInt( allAddressCountNum );
 
-            if (pendingJobName) {
+		expect( allAddressCountNum ).not.toEqual( 0 );
 
-                console.log('DID find bh_wc_bitcoin_gateway_generate_new_addresses job in pending actions. Bad.');
-            } else {
-                console.log('Did NOT find bh_wc_bitcoin_gateway_generate_new_addresses job in pending actions. Good. ');
-            }
+		const unusedAddressCountElement = await page.$( '.unused a .count' );
+		const unusedAddressCountText = await page.evaluate(
+			( element ) => element.textContent,
+			unusedAddressCountElement
+		);
+		let unusedAddressCountNum = unusedAddressCountText.replace(
+			/[\D]/g,
+			''
+		);
+		unusedAddressCountNum = parseInt( unusedAddressCountNum );
 
-        }
+		let assignedAddressCountNum = 0;
+		const assignedAddressCountElement = await page.$(
+			'.assigned a .count'
+		);
+		if ( assignedAddressCountElement ) {
+			const assignedAddressCountText = await page.evaluate(
+				( element ) => element.textContent,
+				assignedAddressCountElement
+			);
+			assignedAddressCountNum = assignedAddressCountText.replace(
+				/[\D]/g,
+				''
+			);
+			assignedAddressCountNum = parseInt( assignedAddressCountNum );
+		}
 
-
-        await page.goto( 'http://localhost:8084/wp-admin/edit.php?post_type=bh-bitcoin-address', {
-            waitUntil: 'networkidle0',
-        } );
-
-        // The corresponding background job to check the newly derived addresses for existing transactions should run now.
-        var unknownAddressCountElement = await page.$('.unknown a .count');
-        while ( unknownAddressCountElement ) {
-            await new Promise((r) => setTimeout(r, 1000));
-
-            await page.goto( 'http://localhost:8084/wp-admin/edit.php?post_type=bh-bitcoin-address', {
-                waitUntil: 'networkidle0',
-            } );
-
-            unknownAddressCountElement = await page.$('.unknown a .count');
-        }
-        
-        // Assert.
-        let updatedUnusedAddressCountElement = await page.$('.unused a .count');
-        var updatedUnusedAddressCountText = await page.evaluate(element => element.textContent, updatedUnusedAddressCountElement);
-        var updatedUnusedAddressCountNumAfter = updatedUnusedAddressCountText.replace(/[\D]/g, '');
-        console.log('updatedUnusedAddressCountNumAfter: ' + updatedUnusedAddressCountNumAfter );
-        updatedUnusedAddressCountNumAfter = parseInt(updatedUnusedAddressCountNumAfter);
-
-        console.log( 'updatedUnusedAddressCountNumAfter: ' + updatedUnusedAddressCountNumAfter );
-
-        expect( updatedUnusedAddressCountNumAfter ).toBeGreaterThanOrEqual(50 );
-
-    });
-
-    it('should correctly report the all addresses count', async () => {
-
-        await merchant.login();
-
-        await page.goto( 'http://localhost:8084/wp-admin/edit.php?post_type=bh-bitcoin-address', {
-            waitUntil: 'networkidle0',
-        } );
-
-        // Filter posts list
-        // All (0) |
-        // Unused (54) |
-        // Assigned (21)
-
-        // .subsubsub .all a .count
-        // .subsubsub .unused a .count
-        // .subsubsub .assigned a .count
-
-        let allAddressCountElement = await page.$('.all a .count');
-        var allAddressCountText = await page.evaluate(element => element.textContent, allAddressCountElement);
-        var allAddressCountNum = allAddressCountText.replace(/[\D]/g, '');
-        allAddressCountNum = parseInt(allAddressCountNum);
-
-        expect( allAddressCountNum !== 0 );
-
-        let unusedAddressCountElement = await page.$('.unused a .count');
-        var unusedAddressCountText = await page.evaluate(element => element.textContent, unusedAddressCountElement);
-        var unusedAddressCountNum = unusedAddressCountText.replace(/[\D]/g, '');
-        unusedAddressCountNum = parseInt(unusedAddressCountNum);
-
-        var assignedAddressCountNum = 0;
-        let assignedAddressCountElement = await page.$('.assigned a .count');
-        if( assignedAddressCountElement ) {
-            var assignedAddressCountText = await page.evaluate(element => element.textContent, assignedAddressCountElement);
-            assignedAddressCountNum = assignedAddressCountText.replace(/[\D]/g, '');
-            assignedAddressCountNum = parseInt(assignedAddressCountNum);
-        }
-
-        expect( (unusedAddressCountNum + assignedAddressCountNum ) === allAddressCountNum );
-
-    });
-
-
-});
+		expect( unusedAddressCountNum + assignedAddressCountNum ).toEqual(
+			allAddressCountNum
+		);
+	} );
+} );

@@ -99,7 +99,7 @@ class Plugins_Page {
 		 *
 		 * @see https://www.skyverge.com/blog/filtering-woocommerce-orders/
 		 */
-		if ( is_plugin_active( 'wc-filter-orders-by-payment/filter-wc-orders-by-gateway.php' ) && class_exists( WC_Payment_Gateway::class ) ) {
+		if ( is_plugin_active( 'wc-filter-orders-by-payment/filter-wc-orders-by-gateway.php' ) && is_plugin_active( 'woocommerce/woocommerce.php' ) ) {
 
 			$params = array(
 				'post_type'                  => 'shop_order',
