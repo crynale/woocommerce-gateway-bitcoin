@@ -12,6 +12,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
 use BrianHenryIE\WP_Bitcoin_Gateway\API_Interface;
+use JsonException;
 use Psr\Log\LoggerAwareTrait;
 use Psr\Log\LoggerInterface;
 
@@ -60,6 +61,8 @@ class Blockstream_Info_API implements Blockchain_API_Interface {
 
 		if ( 1 !== $number_of_confirmations ) {
 			error_log( __CLASS__ . ' ' . __FUNCTION__ . ' using 1 for number of confirmations.' );
+
+			// Maybe `number_of_confirmations` should be block_height and the client can decide is that enough.
 		}
 
 		$result                            = array();
@@ -105,6 +108,8 @@ class Blockstream_Info_API implements Blockchain_API_Interface {
 	 * @param string $btc_address
 	 *
 	 * @return array<string, array{txid:string, time:DateTimeInterface, value:string, confirmations:int}>
+	 *
+	 * @throws JsonException
 	 */
 	public function get_transactions_received( string $btc_address ): array {
 
