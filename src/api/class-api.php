@@ -320,7 +320,7 @@ class API implements API_Interface {
 	 * @param WC_Order $order The WooCommerce order to check.
 	 * @param bool     $refresh Should the result be returned from cache or refreshed from remote APIs.
 	 *
-	 * @return array{btc_address:string, bitcoin_total:string, btc_price_at_at_order_time:string, transactions:array<string, TransactionArray>, btc_exchange_rate:string, last_checked_time:DateTimeInterface, btc_amount_received:string}
+	 * @return array{btc_address:string, bitcoin_total:string, btc_price_at_at_order_time:string, transactions:array<string, TransactionArray>, btc_exchange_rate:string, last_checked_time:DateTimeInterface, btc_amount_received:string, order_status_before:string}
 	 * @throws Exception
 	 */
 	public function get_order_details( WC_Order $order, bool $refresh = true ): array {
@@ -413,30 +413,22 @@ class API implements API_Interface {
 
 				$result['transactions'] = $order_transactions;
 
-					// Sum the transactions with the required number of confirmations.
-				$result['btc_amount_received'] = array_reduce(
-					$order_transactions,
-					function( float $carry, array $transaction ) use ( $gateway_num_required_confirmations ): float {
-						if ( $gateway_num_required_confirmations <= $transaction['confirmations'] ) {
-							$carry += floatval( $transaction['value'] );
-						}
-						return $carry;
-					},
-					0.0
-				);
+				// NB: This is predicated on the address having a zero balance, which is checked for elsewhere.
+				$result['btc_amount_received'] = $this->bitcoin_api->get_address_balance( $address->get_raw_address(), 1 );
 
 				// Add a note saying "one new transactions seen, unconfirmed total =, confirmed total = ...".
-
 				$note = '';
 				if ( ! empty( $updated_address['updates']['new_transactions'] ) ) {
 					// TODO: plural.
 					$note                  .= 'New transactions seen: ';
 					$new_transactions_notes = array();
 					foreach ( $updated_address['updates']['new_transactions'] as $new_transaction ) {
-						$new_transactions_note    = '';
-						$new_transactions_note   .= $new_transaction['txid']; // TODO: add href.
-						$new_transactions_note   .= ', ' . $new_transaction['confirmations'] . ' confirmations';
-						$new_transactions_notes[] = $new_transactions_note;
+						$new_transactions_notes[] = sprintf(
+							'<a href="%s" target="_blank">%s</a>, %s confirmations',
+							esc_url( 'https://blockchain.com/explorer/transactions/btc/' . $new_transaction['txid'] ),
+							substr( $new_transaction['txid'], 0, 3 ) . '...' . substr( $new_transaction['txid'], -3 ),
+							$new_transaction['confirmations']
+						);
 					}
 					$note .= implode( ',', $new_transactions_notes ) . ".\n\n";
 				}
@@ -451,9 +443,12 @@ class API implements API_Interface {
 					);
 					foreach ( $updated_address['updates']['new_confirmations'] as $transaction ) {
 						if ( $above_required_confirmations ) {
-							$note .= 'Transaction ';
-							$note .= $transaction['txid']; // TODO: add href.
-							$note .= ' now has ' . $transaction['confirmations'] . ".\n\n";
+							$note .= sprintf(
+								"Transaction <a href=\"%s\" target=\"_blank\">%s</a> now has %s confirmations.\n\n",
+								esc_url( 'https://blockchain.com/explorer/transactions/btc/' . $transaction['txid'] ),
+								substr( $transaction['txid'], 0, 3 ) . '...' . substr( $transaction['txid'], -3 ),
+								$transaction['confirmations']
+							);
 						}
 					}
 				}
@@ -483,6 +478,8 @@ class API implements API_Interface {
 					$this->logger->info( "`shop_order:{$order_id}` has been marked paid.", array( 'order_id' => $order_id ) );
 				}
 			}
+
+			$order->add_meta_data( Order::BITCOIN_AMOUNT_RECEIVED_META_KEY, $result['btc_amount_received'], true );
 
 			// @phpstan-ignore-next-line This works fine.
 			$order->add_meta_data( Order::LAST_CHECKED_META_KEY, $time_now, true );
@@ -516,6 +513,10 @@ class API implements API_Interface {
 	}
 
 	/**
+	 * Get order details for printing in HTML.
+	 *
+	 * @uses \BrianHenryIE\WP_Bitcoin_Gateway\API_Interface::get_order_details()
+	 *
 	 * @param WC_Order $order The WooCommerce order object to update.
 	 * @param bool     $refresh Should saved order details be returned or remote APIs be queried?
 	 *
